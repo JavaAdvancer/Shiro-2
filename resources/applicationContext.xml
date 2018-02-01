@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.3.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.3.xsd">
+
+	<!-- 引入配置文件 -->
+	<util:properties id="jdbc" location="classpath:jdbc.properties"/>
+	
+	<context:component-scan base-package="com.lbh.shiro">
+		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+	</context:component-scan>
+	
+	<!-- 0: 配置数据源 DataSource -->
+	<bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource" destroy-method="close">
+		<!-- 基本属性的配置 url、 userName、 password、 -->
+		<property name="url" value="#{jdbc.url}"/>
+		<property name="username" value="#{jdbc.userName}"/>
+		<property name="password" value="#{jdbc.password}"/>
+		<!-- 数据类型，可以不配置，不配置则druid会根据url自动识别 -->
+		<property name="driverClassName" value="#{jdbc.driver}"/>
+		<!-- 初始化大小、 最小、 最大 -->
+		<property name="initialSize" value="#{jdbc.initialSize}"/>
+		<property name="minIdle" value="#{jdbc.minIdle}"/>
+		<property name="maxActive" value="#{jdbc.maxActive}"/>
+		<!-- 获取连接最大等待时间，单位毫秒 -->
+		<property name="maxWait" value="#{jdbc.maxWait}"/>
+		<!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->  
+	    <property name="timeBetweenEvictionRunsMillis" value="#{jdbc.timeBetweenEvictionRunsMillis}" />  
+	    <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->  
+	    <property name="minEvictableIdleTimeMillis" value="#{jdbc.minEvictableIdleTimeMillis}" />  
+	    <!-- 验证使用的SQL语句 --> 
+	    <property name="validationQuery" value="#{jdbc.validationQuery}" />  
+	    <!-- 指明连接是否被空闲连接回收器(如果有)进行检验.如果检测失败,则连接将被从池中去除 --> 
+		<property name="testWhileIdle" value="#{jdbc.testWhileIdle}" />  
+	    <!-- 借出连接时不要测试，否则很影响性能 --> 
+		<property name="testOnBorrow" value="#{jdbc.testOnBorrow}" />  
+	    <!-- 回收连接时不要测试，否则很影响性能 --> 
+		<property name="testOnReturn" value="#{jdbc.testOnReturn}" />  
+	    <!-- 打开PSCache -->  
+	    <property name="poolPreparedStatements" value="#{jdbc.poolPreparedStatements}" />  
+		<!-- 每个连接上PSCache的大小 --> 
+	    <property name="maxOpenPreparedStatements" value="#{jdbc.maxOpenPreparedStatements}" /> 
+		<!-- 空闲连接是否强制关闭 --> 
+		<property name="removeAbandoned" value="#{jdbc.removeAbandoned}" />
+		<!-- 空闲连接强制关闭时间，单位是秒 --> 
+		<property name="removeAbandonedTimeout" value="#{jdbc.removeAbandonedTimeout}" />
+		<!-- 空闲连接强制关闭动作记录到日志 --> 
+		<!-- <property name="logAbandoned" value="#{jdbc.logAbandoned}" /> -->
+	    <!-- 配置监控统计拦截的filters，去掉后监控界面sql无法统计 -->  
+	    <!-- property name="filters" value="stat" /-->  
+
+	</bean>
+
+	<!-- 0.1 配置  SqlSessionFactoryBean-->
+	<bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<!-- 指定连接资源 -->
+		<property name="dataSource" ref="dataSource"/> 
+		<!-- 指定映射文件的位置 -->
+		<property name="mapperLocations" value="classpath:mapper/*.xml"/>
+	</bean>
+	
+	<!-- 0.2 配置 Mapper 接口扫描 -->
+	<bean id="mapperScanner" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<!-- 扫描  com.lbh.shiro.dao 包下的 Mapper(映射器)接口 -->
+		<property name="basePackage" value="com.lbh.shiro.dao"/>
+	</bean>
+
+<!-- =========================mybatis数据源 及 shiro 分割线=============================================================== -->
+
+    <!-- 1. 配置 securityManager -->
+    <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <property name="cacheManager" ref="cacheManager"/>
+        <!-- Single realm app.  If you have multiple realms, use the 'realms' property instead. -->
+        <property name="authenticator" ref="authenticator"/>
+        <property name="realms">
+        	<list>
+    			<ref bean="jdbcRealm"/>
+    			<ref bean="secondRealm"/>
+    		</list>
+        </property>
+    </bean>
+
+    <!-- 2. 配置 cacheManager (缓存管理器)
+   		2.1 需要加入ehcache 的jar包  及 配置文件
+    -->
+    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+        <!-- Set a net.sf.ehcache.CacheManager instance here if you already have one.  If not, a new one
+             will be creaed with a default config:
+             <property name="cacheManager" ref="ehCacheManager"/> -->
+        <!-- If you don't have a pre-built net.sf.ehcache.CacheManager instance to inject, but you want
+             a specific Ehcache configuration to be used, specify that here.  If you don't, a default
+             will be used.:-->
+        <property name="cacheManagerConfigFile" value="classpath:ehcache.xml"/> 
+    </bean>
+	
+    <bean id="authenticator" class="org.apache.shiro.authc.pam.ModularRealmAuthenticator">
+    	<property name="authenticationStrategy">
+    		<bean class="org.apache.shiro.authc.pam.AtLeastOneSuccessfulStrategy"></bean>
+    	</property>
+    </bean>
+	
+	<!-- 3.配置 Realm  
+		直接配置了实现了org.apache.shiro.realm.Realm 接口 的bean
+	 -->
+    <bean id="jdbcRealm" class="com.lbh.shiro.realm.ShiroRealm">
+    	<property name="credentialsMatcher">
+    		<bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+    			<property name="hashAlgorithmName" value="MD5"/>   <!-- 输入的密码字符串改为 MD5加密后的值 -->
+    			<property name="hashIterations" value="10"></property>  <!-- 加密次数 -->
+    		</bean>
+    	</property>
+    </bean>
+	
+	<bean id="secondRealm" class="com.lbh.shiro.realm.SecondRealm">
+    	<property name="credentialsMatcher">
+    		<bean class="org.apache.shiro.authc.credential.HashedCredentialsMatcher">
+    			<property name="hashAlgorithmName" value="SHA1"/>   <!-- 输入的密码字符串改为 SHA1加密后的值 -->
+    			<property name="hashIterations" value="10"></property>  <!-- 加密次数 -->
+    		</bean>
+    	</property>
+    </bean>
+
+    <!-- 4. 配置 LifecycleBeanPostProcessor 可以自动的来调用配置在 spring IOC 容器中的shiro bean 的生命周期方法-->
+    <bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+
+    <!-- 5. 启用IOC 容器的shiro注解， 但必须在配置了 LifecycleBeanPostProcessor 之后使用-->
+    <bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator"
+          depends-on="lifecycleBeanPostProcessor"/>
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name="securityManager" ref="securityManager"/>
+    </bean>
+
+
+    <!-- Define the Shiro Filter here (as a FactoryBean) instead of directly in web.xml -
+         web.xml uses the DelegatingFilterProxy to access this bean.  This allows us
+         to wire things with more control as well utilize nice Spring things such as
+         PropertiesPlaceholderConfigurer and abstract beans or anything else we might need: -->
+    
+    <!-- 6. 配置shiroFilter 
+    	6.1 id必须和web.xml文件中的 DelegatingFilterProxy 的 <filter-name> 一致
+    		若不一致，则会抛出： NoSuchBeanDefinitionException. 因为Shiro会 来IOC 容器中查找和<filter-name>名字对应的filterBean
+    	6.2 
+     -->
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <property name="securityManager" ref="securityManager"/>
+        <property name="loginUrl" value="/login.jsp"/>
+        <property name="successUrl" value="/success.jsp"/>
+        <property name="unauthorizedUrl" value="/unauthorized.jsp"/>
+        
+        <property name="filterChainDefinitionMap" ref="filterChainDefinitionMap"></property>
+        <!-- 
+        	配置哪些页面需要受保护。
+        	以及访问这些页面需要的权限
+        	1) anon 可以匿名访问
+        	2) authc 必须认证(登录)之后才能访问
+        	3) logout 登出
+        	4) roles 角色过滤器
+         -->
+         
+       <!-- 权限过滤器 走 数据表存储 -->
+       <!--  <property name="filterChainDefinitions">
+            <value>
+                /login.jsp = anon
+                /shiro/login = anon
+                /shiro/logout = logout
+                
+                /user.jsp = roles[user]
+                /admin.jsp = roles[admin] 
+                
+                
+                # everything else requires authentication:
+                /** = authc
+            </value>
+        </property> -->
+    </bean>
+    
+    <!-- 配置一个 bean， 该bean实际上是一个Map. 通过实际工厂方法的方式 -->
+    <bean id="filterChainDefinitionMap" 
+    	factory-bean="filterChainDefinitionMapBuilder" 
+    	factory-method="buildFilterChainDefinitionMap"></bean>
+    
+	<bean id="filterChainDefinitionMapBuilder" 
+		class="com.lbh.shiro.factory.FilterChainDefinitionMapBuilder"></bean>
+	
+</beans>
+
+
+
+
+
+
+
+
+
+

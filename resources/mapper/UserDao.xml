@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"      
+ "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+ 
+ <mapper namespace="com.lbh.shiro.dao.UserDao">
+ 	
+ 	<select id="findUserbyName" parameterType="string" resultType="com.lbh.shiro.entity.UserAccount">
+ 		SELECT  userid   AS userId,
+			  username   AS userName,
+			  password   AS password,
+			  registertime  AS registerTime,
+			  registerip   AS registerIp, 
+			  islocked   AS islocked
+	    FROM USERACCOUNT
+	    WHERE username = #{userName}
+ 	</select>
+ 	
+ </mapper>
